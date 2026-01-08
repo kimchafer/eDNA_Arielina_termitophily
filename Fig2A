@@ -1,0 +1,147 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# =========================
+# Data
+# =========================
+group_A = np.array([8.68, 10.1, 6.88, 27.4])     # Group A (1.5 Months)
+group_B = np.array([0.0452, 0.864, 2.12, 0.606]) # Group B (8.5 Months)
+
+# Order: Group B (bottom) -> Group A (top)
+data = [group_B, group_A]
+
+# =========================
+# Figure
+# =========================
+fig, ax = plt.subplots(figsize=(7.2, 3.2))
+
+# Boxplot
+ax.boxplot(
+    data,
+    vert=False,
+    widths=0.5,
+    patch_artist=True,
+    showfliers=True,
+    boxprops=dict(facecolor="lightgray", edgecolor="black", linewidth=1.2),
+    medianprops=dict(color="black", linewidth=1.2),
+    whiskerprops=dict(color="black", linewidth=1.2),
+    capprops=dict(color="black", linewidth=1.2),
+    flierprops=dict(
+        marker="o",
+        markerfacecolor="white",
+        markeredgecolor="black",
+        markersize=4,
+        linestyle="none"
+    )
+)
+
+# =========================
+# Overlay individual points (semi-transparent)
+# =========================
+rng = np.random.default_rng(42)
+
+# Group B points
+y_jitter_B = rng.normal(0, 0.04, size=len(group_B))
+ax.scatter(
+    group_B,
+    np.full_like(group_B, 1, dtype=float) + y_jitter_B,
+    s=28,
+    facecolors="white",
+    edgecolors="black",
+    linewidths=0.8,
+    alpha=0.6,
+    zorder=3
+)
+
+# Group A points (exclude outlier 27.4)
+vals_A = group_A[group_A != 27.4]
+y_jitter_A = rng.normal(0, 0.04, size=len(vals_A))
+ax.scatter(
+    vals_A,
+    np.full_like(vals_A, 2, dtype=float) + y_jitter_A,
+    s=28,
+    facecolors="white",
+    edgecolors="black",
+    linewidths=0.8,
+    alpha=0.6,
+    zorder=3
+)
+
+# =========================
+# Highlight outlier (27.4 ng/µl)
+# =========================
+ax.scatter(
+    [27.4],
+    [2],
+    s=42,
+    facecolors="#d95f02",  # 강조용 오렌지
+    edgecolors="black",
+    linewidths=0.9,
+    zorder=4
+)
+
+# =========================
+# Custom Y labels (vertical)
+# =========================
+ax.set_yticks([1, 2])
+ax.set_yticklabels([])
+
+labels = [
+    ("Group B", "(8.5 Months)"),
+    ("Group A", "(1.5 Months)")
+]
+
+for y, (grp, time) in zip([1, 2], labels):
+    ax.text(
+        -0.04, y, time,
+        fontsize=10, rotation=90,
+        va="center", ha="center",
+        transform=ax.get_yaxis_transform()
+    )
+    ax.text(
+        -0.09, y, grp,
+        fontsize=12, rotation=90,
+        va="center", ha="center",
+        transform=ax.get_yaxis_transform()
+    )
+
+# =========================
+# Axes styling
+# =========================
+ax.set_xlabel("DNA Concentration (ng/µl)", fontsize=14)
+ax.set_ylabel("Time elapsed", fontsize=14, labelpad=22)
+
+ax.set_title("DNA Extraction Yield", fontsize=15, pad=10)
+
+ax.tick_params(axis="y", length=0, pad=18)
+ax.tick_params(axis="x", labelsize=12)
+
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.spines["left"].set_linewidth(1.2)
+ax.spines["bottom"].set_linewidth(1.2)
+
+# =========================
+# Layout
+# =========================
+plt.subplots_adjust(
+    left=0.38,
+    right=0.98,
+    top=0.88,
+    bottom=0.22
+)
+
+# =========================
+# Save
+# =========================
+plt.savefig(
+    "DNA_extraction_boxplot_final.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+plt.savefig(
+    "DNA_extraction_boxplot_final.svg",
+    bbox_inches="tight"
+)
+
+plt.show()
