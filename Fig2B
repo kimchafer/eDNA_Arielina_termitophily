@@ -1,0 +1,143 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+
+# =========================
+# Data
+# =========================
+rows = [
+    ("KPC0541","PCR1",24.8), ("KPC0541","PCR2",24.2), ("KPC0541","PCR3",22.8),
+    ("KPC0542","PCR1",22.4), ("KPC0542","PCR2",3.0),  ("KPC0542","PCR3",21.4),
+    ("KPC0543","PCR1",14.3), ("KPC0543","PCR2",7.0),  ("KPC0543","PCR3",16.0),
+    ("KPC0544","PCR1",29.8), ("KPC0544","PCR2",23.6), ("KPC0544","PCR3",25.8),
+    ("KPC0569","PCR1",0.0),  ("KPC0569","PCR2",0.0),  ("KPC0569","PCR3",0.0),
+    ("KPC0570","PCR1",0.0),  ("KPC0570","PCR2",0.0),  ("KPC0570","PCR3",0.0),
+    ("KPC0571","PCR1",0.0),  ("KPC0571","PCR2",0.0),  ("KPC0571","PCR3",0.0),
+    ("KPC0572","PCR1",0.0),  ("KPC0572","PCR2",0.0),  ("KPC0572","PCR3",0.0),
+]
+
+df = pd.DataFrame(rows, columns=["DNA", "PCR", "Qubit"])
+df_pivot = df.pivot(index="PCR", columns="DNA", values="Qubit")
+df_pivot = df_pivot.reindex(["PCR1", "PCR2", "PCR3"])
+
+# 0 값은 흰색 처리
+data_masked = np.ma.masked_where(df_pivot.values == 0, df_pivot.values)
+
+# =========================
+# Colormap (reddish warm-orange)
+# =========================
+colors = [
+    "#fff3e0",  # very light cream
+    "#ffcf8a",  # light peach
+    "#ffb347",  # warm orange
+    "#ff8c1a",  # saturated orange
+    "#e65500"   # dark orange
+]
+cmap = LinearSegmentedColormap.from_list("warm_orange", colors)
+cmap.set_bad("white")
+
+# =========================
+# Figure
+# =========================
+fig, ax = plt.subplots(figsize=(5.2, 3.6))
+
+mesh = ax.pcolormesh(
+    data_masked,
+    cmap=cmap,
+    vmin=0,
+    vmax=30,
+    edgecolors="lightgray",
+    linewidth=0.7,
+    linestyle="--"
+)
+
+# =========================
+# 🔧 ONLY FIX
+# Right-most grid line (same as other grid lines)
+# =========================
+nrows, ncols = df_pivot.shape
+ax.plot(
+    [ncols, ncols], [0, nrows],
+    color="lightgray",
+    linewidth=0.7,
+    linestyle="--"
+)
+
+# =========================
+# Labels & title
+# =========================
+ax.set_title("PCR Amplification Yield", fontsize=16, pad=10)
+ax.set_xlabel("Voucher ID", fontsize=16, labelpad=6)
+ax.set_ylabel("PCR Replicates", fontsize=16, labelpad=10)
+
+# =========================
+# Ticks
+# =========================
+ax.set_xticks(np.arange(ncols) + 0.5)
+ax.set_xticklabels(
+    df_pivot.columns,
+    rotation=315,
+    ha="left",
+    va="top",
+    fontsize=11
+)
+
+ax.set_yticks(np.arange(nrows) + 0.5)
+ax.set_yticklabels(df_pivot.index, fontsize=13)
+
+ax.set_xlim(0, ncols)
+ax.set_ylim(nrows, 0)
+
+# =========================
+# Spines
+# =========================
+for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+for spine in ["left", "bottom"]:
+    ax.spines[spine].set_visible(True)
+    ax.spines[spine].set_linewidth(1.2)
+
+# =========================
+# Annotate values (skip zeros)
+# =========================
+for i in range(nrows):
+    for j in range(ncols):
+        val = df_pivot.iloc[i, j]
+        if val > 0:
+            ax.text(
+                j + 0.5, i + 0.5, f"{val:.1f}",
+                ha="center", va="center",
+                fontsize=11,
+                color="white" if val >= 17 else "black"
+            )
+
+# =========================
+# Layout
+# =========================
+plt.subplots_adjust(left=0.14, right=0.86, top=0.90, bottom=0.32)
+
+# =========================
+# Colorbar (right)
+# =========================
+pos = ax.get_position()
+cax = fig.add_axes([pos.x1 + 0.02, pos.y0, 0.025, pos.height])
+
+cbar = fig.colorbar(mesh, cax=cax, orientation="vertical")
+cbar.set_label("DNA concentration (ng/µl)", fontsize=12, labelpad=6)
+cbar.set_ticks([0, 10, 20, 30])
+cbar.ax.tick_params(labelsize=12)
+
+# =========================
+# Save
+# =========================
+plt.savefig(
+    "PCR_replicate_heatmap_RIGHTEDGE_ONLY_thick.png",
+    dpi=300, bbox_inches="tight"
+)
+plt.savefig(
+    "PCR_replicate_heatmap_RIGHTEDGE_ONLY_thick.svg",
+    bbox_inches="tight"
+)
+
+plt.show()
