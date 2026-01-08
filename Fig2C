@@ -1,0 +1,122 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# =========================
+# Data
+# =========================
+taxa = [
+    "Macrotermes natalensis",
+    "Achyra coelatalis",
+    "Beralade perobliqua",
+    "Hybosorus illigeri",
+    "unclassified Hybosorus",
+    "Tenebrio molitor",
+    "Lasius platythorax",
+    "unclassified Lasius",
+    "unclassified Thripinae",
+    "unclassified Neoptera"
+]
+
+data = {
+    "KPC0541": [4, 0, 0, 0, 2, 0, 0, 0, 0, 0],
+    "KPC0542": [4, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+    "KPC0543": [0, 9, 15, 16, 259, 8, 0, 0, 9, 2],
+    "KPC0544": [0, 0, 0, 0, 0, 0, 2, 0, 4, 0],
+}
+
+df = pd.DataFrame(data, index=taxa)
+
+# =========================
+# Transformation
+# =========================
+df_log10 = np.log10(1 + df)
+vmin, vmax = 0, df_log10.to_numpy().max()
+
+# =========================
+# Figure (FINAL narrow version)
+# =========================
+fig, ax = plt.subplots(figsize=(4.6, 10))
+
+cmap = plt.cm.Blues.copy()
+cmap.set_under("white")
+
+mesh = ax.pcolormesh(
+    df_log10.values,
+    cmap=cmap,
+    vmin=vmin + 1e-6,
+    vmax=vmax,
+    edgecolors="lightgray",
+    linewidth=0.7,
+    linestyle="--"
+)
+
+# =========================
+# Axes labels
+# =========================
+ax.set_xlabel("Voucher ID", fontsize=16, labelpad=6)
+ax.set_ylabel("Taxa", fontsize=16, labelpad=14)
+
+# =========================
+# Ticks
+# =========================
+ax.set_xticks(np.arange(df.shape[1]) + 0.5)
+ax.set_xticklabels(
+    df.columns,
+    rotation=315,
+    ha="left",
+    va="top",
+    fontsize=13
+)
+
+ax.set_yticks(np.arange(df.shape[0]) + 0.5)
+ax.set_yticklabels(df.index, fontsize=13)
+ax.invert_yaxis()
+
+# =========================
+# Spines (keep x/y only)
+# =========================
+for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+for spine in ["left", "bottom"]:
+    ax.spines[spine].set_visible(True)
+    ax.spines[spine].set_linewidth(1.2)
+
+# =========================
+# Annotate values (skip zeros)
+# =========================
+for i in range(df.shape[0]):
+    for j in range(df.shape[1]):
+        val = int(df.iloc[i, j])
+        if val > 0:
+            color = "white" if df_log10.iloc[i, j] > vmax / 2 else "black"
+            ax.text(
+                j + 0.5, i + 0.5, f"{val}",
+                ha="center", va="center",
+                fontsize=11, color=color
+            )
+
+# =========================
+# Layout
+# =========================
+plt.subplots_adjust(
+    left=0.40,
+    right=0.96,
+    top=0.97,
+    bottom=0.40
+)
+
+# =========================
+# Colorbar (bottom, slightly shortened)
+# =========================
+cax = fig.add_axes([0.16, 0.12, 0.78, 0.025])
+cbar = fig.colorbar(mesh, cax=cax, orientation="horizontal")
+cbar.set_label("log10(1 + read counts)", fontsize=14, labelpad=6)
+cbar.ax.tick_params(labelsize=12)
+
+# =========================
+# Save
+# =========================
+plt.savefig("metabarcoding_heatmap_final_narrow.svg", bbox_inches="tight")
+plt.savefig("metabarcoding_heatmap_final_narrow.png", dpi=300, bbox_inches="tight")
+plt.show()
