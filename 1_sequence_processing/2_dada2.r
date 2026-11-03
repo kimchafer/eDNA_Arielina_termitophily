@@ -151,11 +151,7 @@ writeLines(c(
   "Seed: 1"
 ), file.path(LOGS, "parameters.txt"))
 
-cat(
-  "[INFO] Samples:", length(samples),
-  "| DADA2:", as.character(packageVersion("dada2")),
-  "| Threads:", THREADS, "\n"
-)
+cat("[INFO] Input samples:", length(samples), "\n")
 
 # ==============================================================================
 # STEP 1. GENERATE PAIRED-READ QUALITY PROFILES
@@ -170,14 +166,14 @@ pdf(
   width=10, height=7
 )
 print(plotQualityProfile(fnFs[seq_len(nplot)]))
-dev.off()
+invisible(dev.off())
 
 pdf(
   file.path(PLOTS, "02_qualityProfile_R2.pdf"),
   width=10, height=7
 )
 print(plotQualityProfile(fnRs[seq_len(nplot)]))
-dev.off()
+invisible(dev.off())
 
 # ==============================================================================
 # STEP 2. FILTER PAIRED READS BY LENGTH, QUALITY, Ns AND PHIX
@@ -250,7 +246,7 @@ for (direction in c("R1", "R2")) {
     width=10, height=7
   )
   print(plotErrors(err, nominalQ=TRUE))
-  dev.off()
+  invisible(dev.off())
 }
 
 # ==============================================================================
@@ -263,11 +259,13 @@ dadaFs <- dada(
   filtFs, err=errF,
   pool=POOL_MODE, multithread=THREADS
 )
+cat("\n")
 
 dadaRs <- dada(
   filtRs, err=errR,
   pool=POOL_MODE, multithread=THREADS
 )
+cat("\n")
 
 names(dadaFs) <- samples
 names(dadaRs) <- samples
@@ -474,6 +472,11 @@ for (stage in c("prechim", "nochim", "final")) {
 }
 
 write_tsv(
+  do.call(rbind, length_rows),
+  file.path(LOGS, "ASV_length_distribution_all.tsv")
+)
+
+write_tsv(
   data.frame(
     sample=samples,
     n_ASVs=rowSums(seqtab.final > 0),
@@ -512,11 +515,10 @@ writeLines(
   file.path(LOGS, "run_summary.txt")
 )
 
-cat("[DONE] DADA2 completed:", as.character(Sys.time()), "\n")
+cat("[QC PASS] Final ASV tables and read tracking validated\n")
 cat(
   "[SUMMARY] ASVs prechim:", ncol(seqtab),
   "postchim:", ncol(seqtab.nochim),
   "length pass:", ncol(seqtab.final), "\n"
 )
 cat("[SUMMARY] Final reads:", sum(seqtab.final), "\n")
-cat("[OUTPUT]", OUT_DIR, "\n")
