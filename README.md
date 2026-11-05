@@ -218,7 +218,47 @@ The “below DADA2 truncLen” values are **diagnostic counts**, not additional 
 **Scripts:** [`2_dada2_run.sh`](1_sequence_processing/2_dada2_run.sh) and [`2_dada2.r`](1_sequence_processing/2_dada2.r)  
 **Input:** primer-trimmed paired FASTQ files from Step 1
 
-DADA2 filters reads, learns forward/reverse error models, infers ASVs, merges paired reads, removes chimeras, and selects amplicon lengths.
+DADA2 filters reads, learns error models, infers ASVs, merges paired reads, removes chimeras, and applies a final length filter. As demonstrated in the [official DADA2 tutorial](https://benjjneb.github.io/dada2/tutorial.html), users should inspect read quality profiles before selecting truncation lengths and evaluate the learned error models afterward. Our script integrates these steps into a single workflow, and the following QC section illustrates the recommended checks using the example dataset.
+
+<details>
+<summary><strong>Recommended QC: Read quality profiles and error models</strong></summary>
+
+> ### 1. Inspect read quality profiles
+>
+> Read quality should be examined separately for R1 and R2 before selecting truncation lengths. The following plots show the quality profiles of primer-trimmed reads from the four samples, prior to DADA2 quality filtering and truncation.
+>
+> **R1 (forward reads)**
+>
+> ![R1 read quality profiles](images/dada2_quality_profile_r1.png)
+>
+> **R2 (reverse reads)**
+>
+> ![R2 read quality profiles](images/dada2_quality_profile_r2.png)
+>
+> R1 generally maintained high sequencing quality, whereas R2 showed a more pronounced decline toward the 3′ end. Based on these profiles, truncation lengths of 240 bp (R1) and 200 bp (R2) were used. These settings retain a theoretical overlap of 121–133 bp for the selected 307–319 bp amplicons, exceeding the minimum 100 bp required for paired-end merging.
+>
+> Truncation lengths should be reassessed for other datasets based on read quality, read-length distributions, and the overlap required for successful merging.
+>
+> ### 2. Evaluate the learned error models
+>
+> After error learning, the estimated error rates should be compared with the observed error frequencies using `plotErrors()`.
+>
+> **R1 (forward error model)**
+>
+> ![R1 learned error model](images/dada2_error_model_r1.png)
+>
+> **R2 (reverse error model)**
+>
+> ![R2 learned error model](images/dada2_error_model_r2.png)
+>
+> Gray points represent observed error frequencies, black curves represent the fitted error models, and red lines indicate nominal quality-score-based error expectations.
+>
+> Although error learning converged after four rounds, deviations between observed and fitted error rates are visible for some substitution types and quality-score ranges. Convergence alone does not guarantee a satisfactory fit. Error-model plots should therefore be reviewed alongside read-filtering and merging statistics before interpreting the final ASV results.
+>
+> **Note:** The integrated script generates these QC plots during execution. For new datasets, preliminary read quality inspection should be performed before running the full pipeline, followed by evaluation of the learned error models and processing statistics.
+
+</details>
+
 
 **Key R settings and functions (excerpts):**
 
@@ -238,7 +278,7 @@ dadaRs <- dada(filtRs, err=errR, pool="pseudo", multithread=THREADS)
 # Final length range: 307–319 bp (313 ± 6 bp)
 ```
 
-`truncLen` trims lower-quality tails while retaining overlap for ~313 bp amplicons; `maxEE=2` limits expected errors per read. `pool="pseudo"` shares evidence of variants across samples. Merging requires ≥100 bp overlap with zero mismatches. The final 313 ± 6 bp range accommodates limited length variation, including possible short COI indels. There is no separate singleton-removal filter.
+`maxEE=2` limits expected errors per read, while `pool="pseudo"` shares evidence of sequence variants across samples. Paired-end merging requires at least 100 bp of overlap with no mismatches. The final length range of 313 ± 6 bp accommodates limited amplicon-length variation, including possible short COI indels. No separate singleton-removal filter was applied.
 
 **Run:**
 
