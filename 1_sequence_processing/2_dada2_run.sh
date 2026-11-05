@@ -38,7 +38,7 @@ IN_DIR="${WORK_DIR}/1_trimming/3_primer_trim"
 OUT_DIR="${WORK_DIR}/2_dada2"
 LOG_DIR="${OUT_DIR}/logs"
 R_SCRIPT="${WORK_DIR}/2_dada2.r"
-SCRIPT="${WORK_DIR}/2_dada2.sh"
+SCRIPT="${WORK_DIR}/2_dada2_run.sh"
 THREADS="${SLURM_CPUS_PER_TASK:-12}"
 
 # ==============================================================================
