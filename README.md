@@ -2,6 +2,7 @@
 # eDNA_Arielina_termitophily
 Analysis pipeline for surface-soil eDNA metabarcoding to infer putative termite hosts of Arielina beetles.
 # Body-surface eDNA metabarcoding pipeline for *Arielina peringueyi*
+<img width="1291" height="1186" alt="스크린샷 2026-11-03 오후 8 39 59" src="https://github.com/user-attachments/assets/ae0500be-2992-4d2c-bae8-a738c445e7b7" />
 
 This repository documents a step-by-step workflow for processing short COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi*. The workflow was developed to screen for potentially associated organisms, including candidate termite hosts. Taxonomic assignments provide candidates for subsequent validation; they do not, by themselves, establish host identity or a biological association.
 
