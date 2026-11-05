@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/34424405/README.md)
 # Body-surface eDNA metabarcoding pipeline for *Arielina peringueyi*
 
 This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi*. The workflow was developed to screen for potentially associated organisms, including candidate termite hosts. Sequence-based taxonomic assignments identify candidates for further study; they do **not**, on their own, demonstrate host identity, ecological association, or direct physical contact.
@@ -47,7 +46,6 @@ NCBI SRA / demultiplexed paired-end FASTQ
 - [Step 6. Taxonomic assignment with MMseqs2](#step-6-taxonomic-assignment-with-mmseqs2)
 - [Step 7. Comparing 80% and 97% assignments](#step-7-comparing-80-and-97-assignments)
 - [Example results](#example-results)
-- [Interpretation and reproducibility notes](#interpretation-and-reproducibility-notes)
 
 ## Repository structure
 
@@ -155,35 +153,17 @@ The examples below assume these paths have been configured and the raw data are 
 
 ## Step 1. Adapter and primer trimming
 
-**Source:** [`1_trimming.sh`](1_sequence_processing/1_trimming.sh)  
-**Input:** demultiplexed paired `*.fastq.gz` reads  
-**Output:** primer-trimmed paired FASTQ files and Cutadapt/QC reports
+**Script:** [`1_trimming.sh`](1_sequence_processing/1_trimming.sh)  
+**Input:** demultiplexed paired FASTQ files (`*.fastq.gz`)
 
-The target is the approximately 313-bp COI amplicon amplified with the degenerate primers:
+Cutadapt removes sequencing adapters and COI primers in three passes: (1) adapters, (2) 5′ primers, and (3) 3′ primers with final read filtering. The two target primers are:
 
 | Primer | Sequence (5′–3′) |
 | --- | --- |
 | mlCOIintF | `GGWACWGGWTGAACWGTWTAYCCYCC` |
 | jgHCO2198 | `TAIACYTCIGGRTGICCRAARAAYCA` |
 
-The reverse primer contains inosine (`I`). The script retains the original reverse-primer specification for 5′ matching and replaces `I` with `N` when building the reverse-complement 3′ search sequence.
-
-### Core analysis
-
-Cutadapt is run in **three successive passes**, rather than in a single combined command. The excerpts below retain the principal options from the published script:
-
-**Pass 1 — sequencing adapters**
-
-```bash
-cutadapt -j "$THREADS" \
-    -a "$ADAPT_R1" -A "$ADAPT_R2" \
-    -O 15 -e 0.20 --no-indels \
-    --trim-n --minimum-length 50 --pair-filter=any \
-    -o "$adapter_r1" -p "$adapter_r2" \
-    "$raw_r1" "$raw_r2"
-```
-
-**Pass 2 — 5′ COI primers**
+**Key command — 5′ primer trimming (excerpt):**
 
 ```bash
 cutadapt -j "$THREADS" \
@@ -194,188 +174,106 @@ cutadapt -j "$THREADS" \
     "$adapter_r1" "$adapter_r2"
 ```
 
-**Pass 3 — 3′ COI primers and final filters**
+`-O 17` requires at least 17 matched primer bases, while `e=0.20` permits up to 20% errors in a match. `--no-indels` disallows indels *during primer matching*. With `--pair-filter=both`, a pair is retained if **at least one** read has a recognized 5′ primer. In the final pass, `--minimum-length 50` and `--max-n 0` remove pairs with a short or ambiguous read; 3′ primer detection itself is optional. See the full script for adapter and 3′ primer commands.
 
-```bash
-cutadapt -j "$THREADS" \
-    -a "$REV_RC_N" -A "$RC_FWD" \
-    -O 15 -e 0.20 --no-indels --match-read-wildcards \
-    --trim-n --max-n 0 --minimum-length 50 --pair-filter=any \
-    -o "$final_r1" -p "$final_r2" \
-    "$fivep_r1" "$fivep_r2"
-```
-
-### What the principal parameters do
-
-| Option | Purpose and rationale |
-| --- | --- |
-| `-a` / `-A`, `-g` / `-G` | Specify adapter or primer sequences for R1 and R2, respectively. The separate passes make the trimming logic explicit. |
-| `-O 15` or `-O 17` | Require at least 15 aligned bases for adapter/3′ primer matches, or 17 for 5′ primers. A minimum overlap helps avoid short, accidental matches while allowing incomplete primer sequences. |
-| `-e 0.20` | Permit a maximum error rate of 20% within an adapter/primer match, accommodating mismatches in divergent or imperfect reads. |
-| `--no-indels` | Prevent insertions/deletions within adapter/primer matching. This is a *matching* rule, not a claim that COI amplicons contain no indels. |
-| `X` prefix and `--match-read-wildcards` | Use non-internal 5′ matching (including partial matches at the read end) and allow ambiguous nucleotide codes in matching. |
-| `--discard-untrimmed --pair-filter=both` | During the **5′ primer pass only**, discard a read pair if neither read has a recognized 5′ primer. One matched primer is sufficient to retain the pair. |
-| `--pair-filter=any` | In passes with length/ambiguous-base filters, discard a pair if **either** member fails the specified filter. |
-| `--minimum-length 50`, `--max-n 0` | Require both final reads to be at least 50 nt long and to contain no ambiguous `N` bases. |
-| `--trim-n` | Remove terminal `N` bases before subsequent filtering. |
-
-The 3′ primer match is **optional**: absence of a 3′ primer does not, by itself, cause rejection. The script also validates FASTQ integrity, paired-read synchronization, and length distributions. These diagnostic checks do not introduce an additional, separate read-removal step.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 1_trimming.sh
 ```
 
-**Main files to inspect:**
+**Main outputs:**
 
 ```text
 1_trimming/3_primer_trim/<sample>_R1_001.fastq
 1_trimming/3_primer_trim/<sample>_R2_001.fastq
 1_trimming/logs/read_counts_summary.tsv
-1_trimming/logs/<sample>_adapter.txt
-1_trimming/logs/<sample>_5prime.txt
-1_trimming/logs/<sample>_3prime.txt
 ```
 
-```bash
-head -n 6 1_trimming/logs/read_counts_summary.tsv
+**Example Slurm output (`1_trimming_<jobid>.out`, excerpt):**
+
+```text
+[QC PASS] 4 unique paired-end samples
+[INFO] Cutadapt 5.1; threads=12
+[QC PASS] KPC0541: 115,638 pairs; below DADA2 truncLen: 54
+[QC PASS] KPC0542: 149,321 pairs; below DADA2 truncLen: 107
+[QC PASS] KPC0543: 129,552 pairs; below DADA2 truncLen: 79
+[QC PASS] KPC0544: 224,354 pairs; below DADA2 truncLen: 140
+[QC PASS] Total final pairs: 618,865
 ```
 
-**QC checkpoint:** Verify sample pairing and the fraction of read pairs retained after each trimming pass. The final uncompressed paired FASTQ files are used by DADA2.
+The “below DADA2 truncLen” values are **diagnostic counts**, not additional trimming exclusions.
 
 ---
 
 ## Step 2. ASV inference with DADA2
 
-**Sources:** [`2_dada2_run.sh`](1_sequence_processing/2_dada2_run.sh) and [`2_dada2.r`](1_sequence_processing/2_dada2.r)  
-**Input:** paired FASTQ from Step 1  
-**Output:** denoised, merged, nonchimeric, length-selected ASVs and abundance tables
+**Scripts:** [`2_dada2_run.sh`](1_sequence_processing/2_dada2_run.sh) and [`2_dada2.r`](1_sequence_processing/2_dada2.r)  
+**Input:** primer-trimmed paired FASTQ files from Step 1
 
-The Slurm wrapper launches the R script. DADA2 models sequence-specific errors rather than treating all unique read sequences as distinct biological variants. Its major operations are quality filtering, error estimation, denoising, read merging, chimera removal, and final length selection.
+DADA2 filters reads, learns forward/reverse error models, infers ASVs, merges paired reads, removes chimeras, and selects amplicon lengths.
 
-### Core analysis
-
-**Quality filtering:**
+**Key R settings and functions (excerpts):**
 
 ```r
 TRUNC_LEN <- c(240L, 200L)
 MAX_EE <- c(2, 2)
 TRUNC_Q <- 2L
 MAX_N <- 0L
-RM_PHIX <- TRUE
 
-filter_result <- filterAndTrim(
-  fnFs, filtFs, fnRs, filtRs,
-  truncLen=TRUNC_LEN,
-  maxN=MAX_N,
-  maxEE=MAX_EE,
-  truncQ=TRUNC_Q,
-  rm.phix=RM_PHIX,
-  compress=TRUE,
-  multithread=THREADS,
-  verbose=TRUE
-)
-```
-
-**Error learning and denoising:**
-
-```r
-errF <- learnErrors(
-  filtFs, nbases=2e8,
-  errorEstimationFunction=loessErrfun,
-  randomize=FALSE, MAX_CONSIST=10,
-  multithread=THREADS, verbose=TRUE
-)
-
-errR <- learnErrors(
-  filtRs, nbases=2e8,
-  errorEstimationFunction=loessErrfun,
-  randomize=FALSE, MAX_CONSIST=10,
-  multithread=THREADS, verbose=TRUE
-)
-
+# Filtering: filterAndTrim(..., truncLen=TRUNC_LEN, maxEE=MAX_EE, ...)
+# Error learning: learnErrors(..., nbases=2e8, ...)
 dadaFs <- dada(filtFs, err=errF, pool="pseudo", multithread=THREADS)
 dadaRs <- dada(filtRs, err=errR, pool="pseudo", multithread=THREADS)
+
+# Pair merging: mergePairs(..., minOverlap=100L, maxMismatch=0L)
+# Chimera removal: removeBimeraDenovo(..., method="consensus")
+# Final length range: 307–319 bp (313 ± 6 bp)
 ```
 
-**Merge, remove chimeras, and select amplicon lengths:**
+`truncLen` trims lower-quality tails while retaining overlap for ~313 bp amplicons; `maxEE=2` limits expected errors per read. `pool="pseudo"` shares evidence of variants across samples. Merging requires ≥100 bp overlap with zero mismatches. The final 313 ± 6 bp range accommodates limited length variation, including possible short COI indels. There is no separate singleton-removal filter.
 
-```r
-mergers <- mergePairs(
-  dadaFs, filtFs, dadaRs, filtRs,
-  minOverlap=100L, maxMismatch=0L,
-  trimOverhang=FALSE, verbose=TRUE
-)
-
-seqtab <- makeSequenceTable(mergers)
-seqtab.nochim <- removeBimeraDenovo(
-  seqtab, method="consensus", multithread=THREADS, verbose=TRUE
-)
-
-keep <- nchar(colnames(seqtab.nochim)) >= 307L &
-        nchar(colnames(seqtab.nochim)) <= 319L
-seqtab.final <- seqtab.nochim[, keep, drop=FALSE]
-```
-
-### What the principal parameters do
-
-| Setting | Purpose and rationale |
-| --- | --- |
-| `truncLen=c(240,200)` | Truncate R1 and R2 to 240 and 200 nt. This preserves enough overlapping sequence for a ~313-bp fragment while limiting lower-quality read tails. |
-| `maxEE=c(2,2)` | Require no more than two expected errors in each retained read, a quality-aware criterion based on per-base Phred scores. |
-| `truncQ=2` | Truncate at the first base whose quality is at or below the specified threshold; also subject to length filtering. |
-| `maxN=0` | Reject ambiguous bases in filtered reads. |
-| `rm.phix=TRUE` | Remove reads recognized as PhiX control sequence. |
-| `learnErrors(..., nbases=2e8, loessErrfun)` | Learn separate substitution-error models for forward and reverse reads using up to the requested number of bases and the standard LOESS fit. |
-| `pool="pseudo"` | Share evidence of variants across samples approximately, improving sensitivity to low-abundance variants supported elsewhere without full pooling. |
-| `minOverlap=100`, `maxMismatch=0` | Require a substantial, mismatch-free overlap when merging paired reads. |
-| `method="consensus"` | Remove likely chimeras based on agreement across samples rather than relying on a single pooled sample. |
-| `307–319 bp` | Keep amplicons within 313 ± 6 bp after chimera removal. This allows limited length variation, including potential short COI indels, without accepting arbitrary amplicon lengths. |
-
-The pipeline does **not** apply an additional, explicit singleton-read filter after DADA2. ASV inference itself depends on the learned error model and the selected pseudo-pooling strategy.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 2_dada2_run.sh
 ```
 
-**Main files to inspect:**
+**Main outputs:**
 
 ```text
-2_dada2/seqtab.final.rds
 2_dada2/ASVs.nochim.fasta
 2_dada2/ASV_ID_to_sequence.tsv
 2_dada2/sample_by_ASV.tsv
-2_dada2/ASV_by_sample.tsv
-2_dada2/plots/01_qualityProfile_R1.pdf
-2_dada2/plots/02_qualityProfile_R2.pdf
 2_dada2/logs/read_tracking.tsv
 ```
 
-```bash
-head -n 6 2_dada2/logs/read_tracking.tsv
-head -n 6 2_dada2/ASV_ID_to_sequence.tsv
+**Example Slurm output (`2_dada2_<jobid>.out`, excerpt):**
+
+```text
+[INFO] DADA2: 1.38.0
+[STEP 3] Learn R1/R2 errors using standard LOESS
+Convergence after  4  rounds.
+[STEP 4] Pseudo-pooled denoising
+[SUMMARY] ASVs prechim: 375 postchim: 343 length pass: 293
+[SUMMARY] Final reads: 579596
+[QC PASS] Final ASV tables and read tracking validated
 ```
 
-**QC checkpoint:** Examine read retention at filtering, merging, chimera removal, and length selection. Inspect the quality and error-model plots. Despite its filename, `ASVs.nochim.fasta` contains the **final length-selected** nonchimeric ASVs.
+Check `read_tracking.tsv` for per-sample filtering, merging, chimera, and length-selection counts. `ASVs.nochim.fasta` contains the final length-selected ASVs.
 
 ---
 
 ## Step 3. ASV subsequence resolution
 
-**Source:** [`3_subsequence.sh`](1_sequence_processing/3_subsequence.sh)  
-**Input:** ASV FASTA, ASV sequence mapping, and sample-by-ASV table from Step 2  
-**Output:** resolved ASVs and explicit original-to-final ASV mapping
+**Script:** [`3_subsequence.sh`](1_sequence_processing/3_subsequence.sh)  
+**Input:** DADA2 ASV FASTA, sequence mapping, and sample-by-ASV abundance table
 
-Some ASVs can be shorter fragments fully contained within longer ASVs. This custom Python stage tests **all shorter–longer pairs** for 100% exact nucleotide containment and applies conservative, transparent criteria before transferring counts.
+This stage identifies shorter ASVs exactly contained in longer ASVs. An ASV is automatically merged only if it matches a **unique longer parent at a terminal position**, with 100% nucleotide identity, and its length belongs to the designated non-3n class relative to 313 bp. Other matches are retained for manual review.
 
-### Core decision logic
-
-The following excerpt expresses the decision implemented by the script:
+**Key decision (excerpt):**
 
 ```python
 if not parents:
@@ -391,263 +289,209 @@ else:
     merge_to[child] = parent
 ```
 
-| Rule | Why it is applied |
-| --- | --- |
-| 100% identity, no gaps | Avoid merging sequences that differ at nucleotide positions. |
-| Strictly longer parent | Only resolve a shorter, contained ASV into a longer one; equal-length variants are kept distinct. |
-| Unique parent | Prevent arbitrary selection among multiple possible longer ASVs. |
-| Terminal, not internal, containment | Restrict automatic merging to cases consistent with a missing sequence end rather than a wholly internal fragment. |
-| `(child_length − 313) % 3 != 0` | Automatically resolve only the designated non-codon-length class; matched sequences in the 313-frame class are flagged for review rather than merged. This is a conservative **workflow rule**, not a demonstration that a given sequence is an error. |
-| Sample-specific transfer | Preserve each sample's original read abundance and the identity of the contributing ASV. |
+Only the ASV label and abundance allocation change; reads are transferred **within their original samples**. The rule is a conservative curation criterion, not proof that the shorter ASV is erroneous.
 
-If an ASV is automatically merged, its per-sample counts are transferred to the ultimately retained parent. Ambiguous matches remain available in the manual-review report.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 3_subsequence.sh
 ```
 
-**Main files to inspect:**
+**Main outputs:**
 
 ```text
-3_subsequence/asvs.subsequence_matches.tsv
-3_subsequence/asvs.subsequence_resolution.tsv
-3_subsequence/asvs.subsequence_manual_review.tsv
 3_subsequence/asvs.subsequence_resolved.fasta
-3_subsequence/asv_id_to_sequence_resolved.tsv
+3_subsequence/asvs.subsequence_resolution.tsv
 3_subsequence/sample_by_asv_resolved.tsv
 3_subsequence/asvs.subsequence_summary.tsv
 ```
 
-```bash
-cat 3_subsequence/asvs.subsequence_summary.tsv
-```
+**Example Slurm output (`3_subsequence_<jobid>.out`, excerpt):**
 
-**QC checkpoint:** Check proposed automatic parent–child matches and any manual-review entries. The number of ASVs may decrease, but **global and per-sample read totals must not change**.
+```text
+input_asvs                                       293
+exact_match_child_asvs                             1
+auto_merged_child_asvs                             1
+auto_merged_child_reads                           15
+output_asvs                                      292
+output_reads                                 579,596
+  ASV_99 (312 bp, 15 reads) -> ASV_89 (313 bp), final=ASV_89
+[QC PASS] All ASVs accounted for; all sample read totals conserved
+```
 
 ---
 
 ## Step 4. MOTU clustering with Swarm
 
-**Source:** [`4_swarm.sh`](2_motu_curation/4_swarm.sh)  
-**Input:** resolved ASV FASTA and abundances from Step 3  
-**Output:** MOTU clusters, representative sequences, abundance tables, and ASV membership
+**Script:** [`4_swarm.sh`](2_motu_curation/4_swarm.sh)  
+**Input:** resolved ASV FASTA and abundance table from Step 3
 
-Swarm groups related ASVs using a local sequence-difference threshold instead of assigning every sequence pair to an independent fixed-identity bin. The script creates abundance-annotated input labels of the form `>ASV_ID;size=N;` and then calls Swarm.
+Swarm clusters ASVs into MOTUs using a local nucleotide-difference threshold. ASV input headers include abundance annotations (`;size=N;`).
 
-### Core analysis
+**Key command (excerpt):**
 
 ```bash
-# d=2: the default analysis
 swarm -d "$D_VAL" -t "$THREADS" -z \
     -o "$CLUSTERS" -s "$STATS" -w "$SEEDS" "$SWARM_FASTA"
-
-# d=1: the script additionally supplies -f (fastidious mode)
 ```
 
-| Option | Purpose and rationale |
-| --- | --- |
-| `-d 2` | Set the local clustering distance to two nucleotide differences; this is the reference analysis setting. It is **not** a global 98% identity cutoff. |
-| `-f` when `d=1` | Use Swarm's fastidious clustering mode for the one-difference analysis. It is not used for the default `d=2` run. |
-| `-z` | Read sequence abundance from the `;size=N;` FASTA annotations. |
-| `-t` | Use the number of threads allocated by Slurm. |
-| `-o`, `-s`, `-w` | Write cluster membership, cluster statistics, and representative/seed sequences, respectively. |
+The default is `d=2` (up to two differences per local link), **not** a global percentage-identity cutoff. `-z` reads the abundance annotations, and `-o`, `-s`, and `-w` generate membership, statistics, and representative sequences. For `d=1`, the script also enables fastidious mode (`-f`).
 
-The post-processing code verifies that each input ASV belongs to exactly one MOTU, builds MOTU-by-sample counts, and records each MOTU's seed ASV. Swarm clustering **does not perform taxonomic assignment** and does not itself determine biological species boundaries.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 4_swarm.sh 2
 ```
 
-The `2` is the clustering distance. Separate analyses can be run with `sbatch 4_swarm.sh 1` or `sbatch 4_swarm.sh 3`; the script writes to separate `ALL_d1/`, `ALL_d2/`, or `ALL_d3/` directories.
-
-**Main files to inspect (`d=2`):**
+**Main outputs (`d=2`):**
 
 ```text
-4_swarm_motu/ALL_d2/ALL_d2.swarm
-4_swarm_motu/ALL_d2/ALL_d2.stats
 4_swarm_motu/ALL_d2/ALL_d2_MOTU.fasta
 4_swarm_motu/ALL_d2/ALL_d2_MOTU_table.tsv
 4_swarm_motu/ALL_d2/ALL_d2_members.tsv
-4_swarm_motu/ALL_d2/ALL_d2_cluster_summary.tsv
 4_swarm_motu/ALL_d2/ALL_d2_summary.tsv
 ```
 
-```bash
-cat 4_swarm_motu/ALL_d2/ALL_d2_summary.tsv
+**Example Slurm output (`4_swarm_<jobid>.out`, excerpt):**
+
+```text
+[INFO] Swarm: Swarm 3.1.4
+[INFO] Distance d: 2
+input_ASVs                                  292
+MOTUs                                       268
+singleton_ASV_MOTUs                         259
+multi_ASV_MOTUs                               9
+output_reads                            579,596
+[QC PASS] All ASVs assigned once; every sample and all reads conserved
 ```
 
-**QC checkpoint:** Confirm cluster accounting, seed identity, and total/sample read conservation. The `singleton_ASV_MOTUs` statistic counts MOTUs containing **one ASV**, not necessarily MOTUs supported by only one read.
+Here, `singleton_ASV_MOTUs` means **MOTUs containing one ASV**, not MOTUs with one read.
 
 ---
 
 ## Step 5. MOTU curation with VSEARCH and LULU
 
-**Source:** [`5_lulu.sh`](2_motu_curation/5_lulu.sh)  
-**Input:** Swarm MOTU representative FASTA and abundance table  
-**Output:** curated MOTUs, parent mapping, and abundance/QC summaries
+**Script:** [`5_lulu.sh`](2_motu_curation/5_lulu.sh)  
+**Input:** Swarm representative FASTA and MOTU abundance table
 
-LULU identifies lower-abundance MOTUs that may represent erroneous variants of more abundant MOTUs. The script first identifies sufficiently similar sequence pairs with VSEARCH, then uses their relative abundance and sample co-occurrence patterns to decide whether a child MOTU should be merged into a parent.
+VSEARCH identifies similar MOTU representative sequences; LULU then uses sequence similarity, relative abundance, and sample co-occurrence to merge candidate daughter MOTUs into parents.
 
-### Core analysis
-
-**VSEARCH candidate matching:**
+**Key commands (excerpts):**
 
 ```bash
-vsearch \
-    --usearch_global "$FASTA" --db "$FASTA" \
-    --strand plus --self \
-    --id 0.97 --iddef 1 --query_cov 0.90 \
+vsearch --usearch_global "$FASTA" --db "$FASTA" \
+    --strand plus --self --id 0.97 --iddef 1 --query_cov 0.90 \
     --maxaccepts 0 --maxrejects 0 \
-    --threads "$THREADS" \
-    --userout "$MATCHLIST" \
+    --threads "$THREADS" --userout "$MATCHLIST" \
     --userfields query+target+id
 ```
-
-**LULU curation in R:**
 
 ```r
 result <- lulu::lulu(
   otu, matches,
-  minimum_ratio_type="min",
-  minimum_ratio=1,
-  minimum_match=97,
-  minimum_relative_cooccurence=0.95
+  minimum_ratio_type="min", minimum_ratio=1,
+  minimum_match=97, minimum_relative_cooccurence=0.95
 )
 ```
 
-| Setting | Purpose and rationale |
-| --- | --- |
-| `--usearch_global` | Globally align MOTU representatives to identify candidate related sequences. |
-| `--strand plus` | Compare the forward orientation; the COI amplicons are expected in a consistent orientation after primer processing. |
-| `--self` | Suppress self-comparisons when the query and reference are the same FASTA. |
-| `--id 0.97`, `--iddef 1` | Request candidate matches with at least 97% identity under VSEARCH identity definition 1. Identity is computed over the alignment, not simply by dividing mismatches by 313. |
-| `--query_cov 0.90` | Require at least 90% of the query sequence to be represented in the alignment. |
-| `--maxaccepts 0`, `--maxrejects 0` | Avoid prematurely limiting the number of accepted/rejected candidate hits. |
-| `minimum_match=97` | Apply the LULU similarity condition to the VSEARCH match list. |
-| `minimum_ratio_type="min"`, `minimum_ratio=1` | Require the candidate parent to be at least as abundant as the child under LULU's minimum-ratio rule. |
-| `minimum_relative_cooccurence=0.95` | Require strong relative co-occurrence of the child with its proposed parent across the available samples. |
+VSEARCH uses a **97% identity** threshold and at least **90% query coverage** to identify candidates. LULU requires matching similarity, a parent-to-child abundance ratio of at least 1 under its selected rule, and ≥95% relative co-occurrence. These criteria guide curation rather than proving species identity.
 
-High similarity and co-occurrence support **curation decisions**, not proof that two MOTUs are the same biological species. In particular, observing both candidates in only one sample can satisfy a high relative co-occurrence threshold without strong replication.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 5_lulu.sh 2
 ```
 
-**Main files to inspect (`d=2`):**
+**Main outputs (`d=2`):**
 
 ```text
-5_lulu/ALL_d2/ALL_d2_vsearch_matchlist.tsv
 5_lulu/ALL_d2/LULU_curated_MOTU.fasta
 5_lulu/ALL_d2/LULU_curated_MOTU_table.tsv
 5_lulu/ALL_d2/LULU_MOTU_map.tsv
-5_lulu/ALL_d2/LULU_sample_summary.tsv
 5_lulu/ALL_d2/LULU_summary.tsv
 ```
 
-```bash
-cat 5_lulu/ALL_d2/LULU_summary.tsv
-```
+**Example Slurm output (`5_lulu_<jobid>.out`, excerpt; progress percentages omitted):**
 
-**QC checkpoint:** Review the parent/daughter mapping and per-sample read conservation. LULU reassigns counts to retained MOTUs; it does not remove those reads. Subsequent taxonomy uses the **LULU-curated representative FASTA**, not the pre-LULU Swarm FASTA.
+```text
+[INFO] LULU version: 0.1.0
+[QC] VSEARCH match records: 16
+input_MOTUs                          268
+retained_MOTUs                       267
+merged_MOTUs                         1
+input_reads                          579596
+curated_reads                        579596
+read_conservation                    PASS
+[QC PASS] All MOTUs mapped; curated counts and sample reads conserved
+```
 
 ---
 
 ## Step 6. Taxonomic assignment with MMseqs2
 
-**Source:** [`6_mmseqs_lca4.sh`](3_taxonomic_assignment/6_mmseqs_lca4.sh)  
-**Input:** LULU-curated MOTU representatives and a nucleotide taxonomy reference database  
-**Output:** two MOTU-level taxonomic assignment TSVs and search/QC logs
+**Script:** [`6_mmseqs_lca4.sh`](3_taxonomic_assignment/6_mmseqs_lca4.sh)  
+**Input:** LULU-curated MOTU representatives and a taxonomy-enabled nucleotide reference database
 
-This stage compares two minimum sequence identity thresholds, **80%** and **97%**, while keeping the remaining settings identical. The lower threshold provides a broader taxonomic placement for divergent or poorly represented sequences; the more stringent threshold assesses which assignments persist under more restrictive matching. These are **two separate analyses**, not a sequential filtering of 80% hits to 97%.
+MMseqs2 classifies each MOTU twice using minimum sequence identity thresholds of **80% and 97%**. All other search parameters remain unchanged; the second analysis is **independent**, not a post-filter of the first.
 
-### Core analysis
-
-The full script constructs an MMseqs2 query database and runs the following taxonomy command **twice**, with `identity=0.80` and `identity=0.97`:
+**Key command (excerpt; `$identity` is 0.80 or 0.97):**
 
 ```bash
-mmseqs createdb "$QUERY_FASTA" "$QUERY_DB"
-
-mmseqs taxonomy \
-    "$QUERY_DB" "$REF_DB" "$result" "$tmp" \
+mmseqs taxonomy "$QUERY_DB" "$REF_DB" "$result" "$tmp" \
     --tax-lineage 1 --threads "$THREADS" \
-    --search-type 3 --orf-filter 0 \
-    --lca-mode 4 --alignment-mode 3 --strand 2 \
-    -s 5 -e 1e-5 \
-    --min-seq-id "$identity" --min-aln-len 300 \
-    -c 0.80 --cov-mode 2 \
+    --search-type 3 --orf-filter 0 --lca-mode 4 \
+    --alignment-mode 3 --strand 2 \
+    -s 5 -e 1e-5 --min-seq-id "$identity" \
+    --min-aln-len 300 -c 0.80 --cov-mode 2 \
     --max-accept 20 --max-rejected 50
-
-mmseqs createtsv "$QUERY_DB" "$result" "${result}.tsv" \
-    --threads "$THREADS"
 ```
 
-Here, `$tmp` is shorthand for the run-specific temporary directory used by the actual script. The executable uses distinct result and temporary paths for the two identity thresholds.
+`--lca-mode 4` selects the same taxonomy algorithm for both conditions. `--min-aln-len 300` requires a long match to the ~313 bp target; `-c 0.80 --cov-mode 2` sets query coverage. `-s 5` controls sensitivity, and `--max-accept 20` limits accepted search hits. The 80% and 97% values are **minimum search thresholds**, not measured identities reported for individual MOTUs.
 
-| Option | Purpose and rationale |
-| --- | --- |
-| `--search-type 3` | Perform a nucleotide search against the nucleotide reference database. |
-| `--orf-filter 0` | Disable the ORF-filter setting for these short nucleotide amplicons. |
-| `--lca-mode 4` | Apply the selected MMseqs2 LCA classification mode consistently in both comparisons. |
-| `--alignment-mode 3` | Use the specified alignment calculation mode for the search. |
-| `--strand 2` | Search both sequence orientations. |
-| `-s 5` | Specify search sensitivity; higher settings may increase sensitivity and computational cost. |
-| `-e 1e-5` | Apply the E-value threshold to candidate alignments. |
-| `--min-seq-id 0.80` / `0.97` | Compare permissive and stringent minimum identity conditions. These values are **acceptance thresholds, not the observed identity of each MOTU**. |
-| `--min-aln-len 300` | Require an alignment spanning at least 300 nt of the approximately 313-nt COI target. |
-| `-c 0.80 --cov-mode 2` | Apply a minimum 80% query-coverage criterion. |
-| `--max-accept 20`, `--max-rejected 50` | Limit the number of accepted and rejected search candidates considered by the search procedure. |
-| `--tax-lineage 1` | Include taxonomic lineage information in the output. |
-
-An assignment that becomes `unclassified` at 97% should **not** be reinterpreted as evidence that the sequence is absent or belongs outside the originally assigned higher taxon. Taxonomy is reference-dependent; the two conditions assess the stability of the reported assignments under the configured criteria.
-
-### Run the stage
+**Run:**
 
 ```bash
 cd "$WORK_DIR"
 sbatch 6_mmseqs_lca4.sh
 ```
 
-**Main files to inspect:**
+**Main outputs:**
 
 ```text
 6_mmseqs_lca4/results/taxonomy_lca4_a20_80.tsv
 6_mmseqs_lca4/results/taxonomy_lca4_a20_97.tsv
-6_mmseqs_lca4/logs/input_metrics.tsv
 6_mmseqs_lca4/logs/taxonomy_qc.tsv
 ```
 
-```bash
-head -n 5 6_mmseqs_lca4/results/taxonomy_lca4_a20_80.tsv
-head -n 5 6_mmseqs_lca4/results/taxonomy_lca4_a20_97.tsv
-cat 6_mmseqs_lca4/logs/taxonomy_qc.tsv
-```
+**Example Slurm output (`6_mmseqs_lca4_<jobid>.out`, excerpt; search progress omitted):**
 
-**QC checkpoint:** Check that both assignments report each of the input curated MOTU IDs exactly once, that output column counts are correct, and that the MMseqs2 reference database and parameter settings have been recorded. The taxonomy TSV does **not** by itself contain per-hit alignment identity, coverage, or a full list of reference hits.
+```text
+[INFO] MMseqs2: 13.45111
+[QC PASS] Curated input: 267 MOTUs, 579,596 reads
+[STEP 2] Create query database (267 MOTUs)
+[QC PASS] Query database created
+[QC PASS] 80: 267 unique taxonomy rows; all MOTUs represented
+[QC PASS] 97: 267 unique taxonomy rows; all MOTUs represented
+[QC PASS] Both taxonomy assignments validated for 267 MOTUs
+```
 
 ---
 
 ## Step 7. Comparing 80% and 97% assignments
 
-**Source:** [`7_taxonomy_comparison.py`](3_taxonomic_assignment/7_taxonomy_comparison.py)  
-**Input:** both MMseqs2 taxonomy TSVs and the LULU-curated MOTU abundance table  
-**Output:** joined 21-column TSV and plain XLSX worksheet, plus QC logs
+**Script:** [`7_taxonomy_comparison.py`](3_taxonomic_assignment/7_taxonomy_comparison.py)  
+**Input:** both MMseqs2 taxonomy TSVs and the LULU-curated abundance table
 
-The final Python script joins the two taxonomy conditions **by MOTU ID** (not by row position) and appends the original sample-by-MOTU read counts. The merged table retains taxonomic names, ranks, NCBI TaxIDs, order/family information derived from lineage, and whether each assignment was retained at the more stringent threshold.
+This Python stage joins the two sets of taxonomic assignments **by MOTU ID** (not row position), preserves sample-level abundances, and labels changes between the conditions.
 
-### Core comparison logic
+**Key comparison logic (excerpt):**
 
 ```python
 def compare(t80, t97):
-    a, b = t80[0], t97[0]  # NCBI TaxIDs
+    a, b = t80[0], t97[0]
     if a == 0 and b == 0:
         return "Unclassified both"
     if a != 0 and b == 0:
@@ -657,24 +501,16 @@ def compare(t80, t97):
     return "Same TaxID" if a == b else "Changed TaxID"
 ```
 
-| Comparison value | Meaning |
-| --- | --- |
-| `Same TaxID` | Both conditions returned the same NCBI taxon. |
-| `Lost at 97%` | The 80% analysis returned a taxon but the 97% analysis returned no assignment. |
-| `Gained at 97%` | The 97% analysis returned a taxon but the 80% analysis did not. |
-| `Changed TaxID` | Both analyses assigned taxa, but to different NCBI TaxIDs. |
-| `Unclassified both` | Neither condition returned a taxonomic assignment. |
+A `Lost at 97%` assignment means that the stricter search did not return a TaxID; it does **not** mean the MOTU or its reads were removed. The output XLSX is a plain worksheet with no custom styling or filters.
 
-This stage does **not** reclassify sequences or change their read counts. The Excel file is deliberately a plain worksheet without custom colors, borders, filters, or frozen panes.
-
-### Run the stage
+**Run (directly in the terminal; no Slurm submission):**
 
 ```bash
 cd "$WORK_DIR"
 python3 7_taxonomy_comparison.py
 ```
 
-**Main files to inspect:**
+**Main outputs:**
 
 ```text
 7_taxonomy_comparison/MOTU_comparison.tsv
@@ -682,37 +518,30 @@ python3 7_taxonomy_comparison.py
 7_taxonomy_comparison/logs/comparison_summary.tsv
 ```
 
-```bash
-cat 7_taxonomy_comparison/logs/comparison_summary.tsv
-```
+**Example terminal output (excerpt):**
 
-**QC checkpoint:** All MOTU IDs in both taxonomy files must match those in the LULU abundance table; totals must remain unchanged. The script expects the example study's four sample columns `KPC0541`–`KPC0544`; adapt the header configuration if analyzing a different sample set.
+```text
+[QC PASS] Input IDs agree: 267 MOTUs, 579,596 reads
+[QC PASS] Total MOTUs: 267; reads: 579,596
+[QC] Insecta: 80% = 40; 97% = 9
+[QC] Same TaxID: 48
+[QC] Lost at 97%: 163
+[QC] Gained at 97%: 0
+[QC] Changed TaxID: 0
+[QC] Unclassified both: 56
+```
 
 ---
 
 ## Example results
 
-The following are **observed results for the four-library dataset**, not required values for another study:
+These are **observed results for the four-library dataset**, not fixed thresholds that other datasets must reproduce:
 
-| Stage | Retained units | Total reads |
+| Stage | Retained units | Reads |
 | --- | ---: | ---: |
 | DADA2 | 293 ASVs | 579,596 |
 | Subsequence resolution | 292 ASVs | 579,596 |
 | Swarm (`d=2`) | 268 MOTUs | 579,596 |
 | LULU | 267 MOTUs | 579,596 |
 
-At 80% minimum sequence identity, 40 of the 267 curated MOTUs were assigned within Insecta. At 97%, nine MOTUs retained an Insecta assignment. The comparison stage reported 48 unchanged TaxIDs, 163 assignments lost at 97%, and 56 unclassified MOTUs under both settings.
-
-These numbers are presented as **tutorial checkpoints** only. The code does not require another dataset to reproduce them.
-
-## Interpretation and reproducibility notes
-
-- **Read conservation:** Steps 3–5 redistribute reads among ASVs or MOTUs rather than removing reads. A difference between input and output read totals indicates an accounting problem; it is not evidence of biological loss.
-- **ASVs versus MOTUs:** ASVs are denoised sequence variants; MOTUs are sequence clusters curated by defined similarity and abundance/co-occurrence rules. Neither automatically represents a biological species.
-- **Low-abundance taxonomic signals:** A few reads assigned to a particular taxon warrant careful examination of sample handling, negative controls, possible contamination or index misassignment, reference coverage, and independent ecological verification.
-- **Reference database:** MMseqs2 classifications are dependent on the composition, taxonomy mapping, and version of the nucleotide database. Record the database provenance if you apply this workflow to a different reference.
-- **Threshold interpretation:** `--min-seq-id` sets a minimum search identity; it is not a per-MOTU identity estimate. A lack of assignment at 97% is not proof of non-detection.
-- **Coding-sequence QC:** No MACSE or other translation/frameshift-filtering stage is part of this published workflow.
-- **Hardware and paths:** The supplied Slurm resources and absolute paths describe the original HPC environment and should be adapted locally. Do not create stage output directories in advance; the scripts have overwrite-protection safeguards.
-
-The linked source scripts are the authoritative record of executable settings. The code excerpts in this tutorial are intentionally shorter and provided to explain how the principal methods and parameters are used.
+The displayed Slurm and terminal excerpts are taken **from this dataset's run logs**, with progress messages and insignificant whitespace omitted. For troubleshooting or detailed QC, inspect the complete log and output tables for the relevant stage.
