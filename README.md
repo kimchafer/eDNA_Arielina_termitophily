@@ -1,8 +1,9 @@
 # Body-surface eDNA metabarcoding pipeline for *Arielina peringueyi*
 <img width="1286" height="807" alt="cover" src="https://github.com/user-attachments/assets/1d8ab01b-4cad-47e3-b36a-b99e4746e5b6" />
-This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi*. The workflow was developed to screen for potentially associated organisms, including candidate termite hosts. Sequence-based taxonomic assignments identify candidates for further study; they do **not**, on their own, demonstrate host identity, ecological association, or direct physical contact.
 
-The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The commands shown under “Core analysis” illustrate the relevant parts of the published scripts; run the complete scripts rather than running these excerpts separately.**
+This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi*. The workflow was developed to screen for potentially associated organisms, including candidate termite hosts.
+
+The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The commands shown under “Core analysis” illustrate the relevant parts of the published scripts; run the complete scripts rather than running these excerpts separately.** ChatGPT (OpenAI) assisted with script development and troubleshooting, while all analytical decisions, parameter settings, and validation were performed by the authors.
 
 ## Workflow
 
@@ -65,7 +66,7 @@ eDNA_Arielina_termitophily/
     └── 7_taxonomy_comparison.py
 ```
 
-The repository contains **source code**, not the full sequencing dataset or a prebuilt MMseqs2 reference database. Intermediate and final analysis files are generated in the configured working directory.
+The repository contains **source code**, not the full sequencing dataset or a prebuilt MMseqs2 reference database. Intermediate and final analysis files are generated in the working directory specified by the user when running the pipeline.
 
 ## Software and computing requirements
 
