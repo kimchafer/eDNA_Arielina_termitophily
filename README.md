@@ -1,7 +1,7 @@
 # Body-surface eDNA metabarcoding pipeline for *Arielina peringueyi*
 <img width="1286" height="807" alt="cover" src="https://github.com/user-attachments/assets/1d8ab01b-4cad-47e3-b36a-b99e4746e5b6" />
 
-This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi* beetles (Insecta: Coleoptera: Scarabaeidae: Cetoniinae: Cremastocheilini). As this species belongs to Cremastocheilini, a beetle tribe known for social parasitism, the workflow was developed to screen for associated organisms, with particular emphasis on identifying potential termite hosts.
+This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi* beetles (Insecta: Coleoptera: Scarabaeidae: Cetoniinae: Cremastocheilini). As this species belongs to Cremastocheilini, a tribe known for social parasitism, the workflow was developed to screen for associated organisms, with particular emphasis on identifying potential termite hosts.
 
 The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The commands shown under “Core analysis” illustrate the relevant parts of the published scripts; run the complete scripts rather than running these excerpts separately.** ChatGPT (OpenAI) assisted with script development and troubleshooting, while all analytical decisions, parameter settings, and validation were performed by the authors.
 
