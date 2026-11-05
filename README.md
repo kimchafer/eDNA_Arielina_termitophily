@@ -99,15 +99,6 @@ fasterq-dump <SRR_accession> --split-files -e 8
 gzip <SRR_accession>_1.fastq <SRR_accession>_2.fastq
 ```
 
-Replace `<SRR_accession>` with an actual run accession (without angle brackets). `prefetch` downloads the SRA run; `fasterq-dump --split-files` converts the paired reads to separate FASTQ files; `-e 8` uses eight processing threads. Since `fasterq-dump` produces uncompressed FASTQ, `gzip` is run separately. The SRA extraction step can require substantial temporary disk space.
-
-The resulting files are ordinarily named `SRRxxxxxx_1.fastq.gz` and `SRRxxxxxx_2.fastq.gz`. **Rename them according to the verified SRR-to-sample mapping** and place the files in the configured `raw_data/` directory before running Step 1. For example, *only when the selected SRR is confirmed to represent KPC0541*:
-
-```bash
-mv SRRxxxxxx_1.fastq.gz raw_data/KPC0541_E_Lib_S99_L001_R1_001.fastq.gz
-mv SRRxxxxxx_2.fastq.gz raw_data/KPC0541_E_Lib_S99_L001_R2_001.fastq.gz
-```
-
 The original input naming pattern was:
 
 ```text
@@ -122,7 +113,7 @@ raw_data/
 └── KPC0544_E_Lib_S102_L001_R2_001.fastq.gz
 ```
 
-The trimming script automatically discovers files ending in `_R1_001.fastq.gz` and `_R2_001.fastq.gz` and recognizes the original `_E_Lib_S..._L...` pattern to derive sample IDs such as `KPC0541`. **Do not assign SRR files to these sample names without checking the SRA metadata.** Users applying the tutorial to different datasets may use different sample prefixes, but should review the assumptions about sample naming and the four fixed sample columns in Step 7.
+The trimming script expects paired FASTQ files ending in `_R1_001.fastq.gz` and `_R2_001.fastq.gz` and recognizes the original `_E_Lib_S..._L...` naming pattern to identify samples. Users working with differently named files should either modify the filename-parsing logic in `1_trimming.sh` or rename their files to match the expected pattern, ensuring that sample identities are correctly assigned. Users applying the pipeline to other datasets should also review sample-naming assumptions in downstream scripts, including the fixed sample columns in Step 7.
 
 ## Preparing the analysis workspace
 
