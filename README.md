@@ -1,7 +1,7 @@
 # Body-surface eDNA metabarcoding pipeline for *Arielina peringueyi*
 <img width="1286" height="807" alt="cover" src="https://github.com/user-attachments/assets/1d8ab01b-4cad-47e3-b36a-b99e4746e5b6" />
 
-This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi*. The workflow was developed to screen for potentially associated organisms, including candidate termite hosts.
+This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi* beetles (Insecta: Coleoptera: Scarabaeidae: Cetoniinae: Cremastocheilini). As this species belongs to Cremastocheilini, a beetle tribe known for social parasitism, the workflow was developed to screen for associated organisms, with particular emphasis on identifying potential termite hosts.
 
 The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The commands shown under “Core analysis” illustrate the relevant parts of the published scripts; run the complete scripts rather than running these excerpts separately.** ChatGPT (OpenAI) assisted with script development and troubleshooting, while all analytical decisions, parameter settings, and validation were performed by the authors.
 
@@ -253,7 +253,7 @@ DADA2 filters reads, learns error models, infers ASVs, merges paired reads, remo
 >
 > Gray points represent observed error frequencies, black curves represent the fitted error models, and red lines indicate nominal quality-score-based error expectations.
 >
-> Although error learning converged after four rounds, deviations between observed and fitted error rates are visible for some substitution types and quality-score ranges. Convergence alone does not guarantee a satisfactory fit. Error-model plots should therefore be reviewed alongside read-filtering and merging statistics before interpreting the final ASV results.
+> The fitted models generally captured the quality-dependent trends in observed error frequencies, although deviations were evident for some substitution types and quality-score ranges. Both models converged after four rounds, but convergence alone does not establish model adequacy. Users should therefore examine error-model plots alongside read-filtering, merging, and retention statistics before interpreting the final ASV results.
 >
 > **Note:** The integrated script generates these QC plots during execution. For new datasets, preliminary read quality inspection should be performed before running the full pipeline, followed by evaluation of the learned error models and processing statistics.
 
@@ -308,7 +308,9 @@ Convergence after  4  rounds.
 [QC PASS] Final ASV tables and read tracking validated
 ```
 
-Check `read_tracking.tsv` for per-sample filtering, merging, chimera, and length-selection counts. `ASVs.nochim.fasta` contains the final length-selected ASVs.
+**QC assessment:**
+
+Of the 618,865 read pairs retained after primer trimming, 589,476 (95.3%) passed DADA2 quality filtering, and 579,596 (93.7%) remained after merging, chimera removal, and length selection. Read retention was consistently high across the four samples (93.1–94.6%). Although some deviations between observed and fitted error rates were evident, both error models converged after four rounds, and no substantial read loss occurred during subsequent processing. The resulting 293 ASVs, with no singletons, were therefore carried forward to the subsequence resolution step (Step 3). The final sequences and per-sample abundances are provided in `ASVs.nochim.fasta` and `sample_by_ASV.tsv`, respectively.
 
 ---
 
@@ -317,7 +319,7 @@ Check `read_tracking.tsv` for per-sample filtering, merging, chimera, and length
 **Script:** [`3_subsequence.sh`](1_sequence_processing/3_subsequence.sh)  
 **Input:** DADA2 ASV FASTA, sequence mapping, and sample-by-ASV abundance table
 
-This stage identifies shorter ASVs exactly contained in longer ASVs. An ASV is automatically merged only if it matches a **unique longer parent at a terminal position**, with 100% nucleotide identity, and its length belongs to the designated non-3n class relative to 313 bp. Other matches are retained for manual review.
+In Step 2, an amplicon length range of 313 ± 6 bp was allowed to accommodate potential biological length variation, including short indels in insect COI sequences. However, this range may also retain artificially shortened ASVs that do not represent genuine biological variation. To address this before MOTU clustering, shorter ASVs were examined for exact sequence containment within longer ASVs. Automatic merging was restricted to ASVs showing 100% nucleotide identity to a unique longer parent at a terminal position and a length difference from 313 bp that was not a multiple of three. Any matches not meeting these criteria would be flagged for manual review rather than automatically merged.
 
 **Key decision (excerpt):**
 
@@ -366,6 +368,8 @@ output_reads                                 579,596
 [QC PASS] All ASVs accounted for; all sample read totals conserved
 ```
 
+In this dataset, one shorter ASV (ASV_99, 312 bp, 15 reads) was merged into an exact-matching 313-bp ASV (ASV_89), reducing the total from 293 to 292 ASVs without changing the total read count. The resolved ASVs were then used for Swarm clustering in Step 4.
+
 ---
 
 ## Step 4. MOTU clustering with Swarm
@@ -383,6 +387,8 @@ swarm -d "$D_VAL" -t "$THREADS" -z \
 ```
 
 The default is `d=2` (up to two differences per local link), **not** a global percentage-identity cutoff. `-z` reads the abundance annotations, and `-o`, `-s`, and `-w` generate membership, statistics, and representative sequences. For `d=1`, the script also enables fastidious mode (`-f`).
+
+**Clustering parameter considerations.** Users are encouraged to test multiple `d` values (e.g., 1–10) and compare changes in MOTU counts and cluster composition. An elbow-like pattern in MOTU counts or a marked increase in cluster merging may help identify a suitable range, although neither provides a definitive criterion. The final `d` value should be selected considering the characteristics of the target marker and dataset. This analysis used `d=2`.
 
 **Run:**
 
@@ -442,7 +448,7 @@ result <- lulu::lulu(
 )
 ```
 
-VSEARCH uses a **97% identity** threshold and at least **90% query coverage** to identify candidates. LULU requires matching similarity, a parent-to-child abundance ratio of at least 1 under its selected rule, and ≥95% relative co-occurrence. These criteria guide curation rather than proving species identity.
+VSEARCH uses a **97% identity** threshold and at least **90% query coverage** to identify candidates. LULU requires matching similarity, a parent-to-child abundance ratio of at least 1 under its selected rule, and ≥95% relative co-occurrence.
 
 **Run:**
 
@@ -481,7 +487,7 @@ read_conservation                    PASS
 **Script:** [`6_mmseqs_lca4.sh`](3_taxonomic_assignment/6_mmseqs_lca4.sh)  
 **Input:** LULU-curated MOTU representatives and a taxonomy-enabled nucleotide reference database
 
-MMseqs2 classifies each MOTU twice using minimum sequence identity thresholds of **80% and 97%**. All other search parameters remain unchanged; the second analysis is **independent**, not a post-filter of the first.
+Because this study required species- and genus-level taxonomic information to investigate potential host associations, assignments obtained using the 97% identity threshold were prioritized for interpretation. However, many MOTUs remained unclassified under this condition. An additional analysis at 80% identity was therefore performed to explore the broader taxonomic affiliations of these MOTUs.
 
 **Key command (excerpt; `$identity` is 0.80 or 0.97):**
 
@@ -495,7 +501,7 @@ mmseqs taxonomy "$QUERY_DB" "$REF_DB" "$result" "$tmp" \
     --max-accept 20 --max-rejected 50
 ```
 
-`--lca-mode 4` selects the same taxonomy algorithm for both conditions. `--min-aln-len 300` requires a long match to the ~313 bp target; `-c 0.80 --cov-mode 2` sets query coverage. `-s 5` controls sensitivity, and `--max-accept 20` limits accepted search hits. The 80% and 97% values are **minimum search thresholds**, not measured identities reported for individual MOTUs.
+`--lca-mode 4` assigns taxonomy based on the lowest common ancestor of equally scoring top hits and was applied to both identity conditions. `--min-aln-len 300` requires a long match to the ~313 bp target; `-c 0.80 --cov-mode 2` sets query coverage. `-s 5` controls search sensitivity, and `--max-accept 20` limits the number of accepted search hits.
 
 **Run:**
 
@@ -580,8 +586,6 @@ python3 7_taxonomy_comparison.py
 ---
 
 ## Example results
-
-These are **observed results for the four-library dataset**, not fixed thresholds that other datasets must reproduce:
 
 | Stage | Retained units | Reads |
 | --- | ---: | ---: |
