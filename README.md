@@ -117,29 +117,41 @@ The trimming script expects paired FASTQ files ending in `_R1_001.fastq.gz` and 
 
 ## Preparing the analysis workspace
 
-Clone the repository:
+Before running the pipeline, prepare separate directories for raw sequencing data and analysis outputs. Download the eight script files covering Steps 1–7 from this repository and place them in a common working directory, following the structure below.
 
-```bash
-git clone https://github.com/kimchafer/eDNA_Arielina_termitophily.git
-cd eDNA_Arielina_termitophily
+```text
+project/
+├── raw_data/
+│   ├── KPC0541_E_Lib_S99_L001_R1_001.fastq.gz
+│   ├── KPC0541_E_Lib_S99_L001_R2_001.fastq.gz
+│   └── ... (remaining paired-end FASTQ files)
+│
+└── analyses/
+    └── run_01/                         # WORK_DIR
+        ├── 1_trimming.sh
+        ├── 2_dada2_run.sh
+        ├── 2_dada2.r
+        ├── 3_subsequence.sh
+        ├── 4_swarm.sh
+        ├── 5_lulu.sh
+        ├── 6_mmseqs_lca4.sh
+        └── 7_taxonomy_comparison.py
 ```
 
-The workflow uses a common working directory for scripts and generated outputs. As an example, copy the source scripts into a working directory:
+For example, create the directories using:
 
 ```bash
-REPO_DIR="$PWD"
-WORK_DIR=/path/to/your/analysis
-RAW_DIR=/path/to/your/raw_data
-mkdir -p "$WORK_DIR" "$RAW_DIR"
-
-cp "$REPO_DIR/1_sequence_processing/"{1_trimming.sh,2_dada2_run.sh,2_dada2.r,3_subsequence.sh} "$WORK_DIR/"
-cp "$REPO_DIR/2_motu_curation/"{4_swarm.sh,5_lulu.sh} "$WORK_DIR/"
-cp "$REPO_DIR/3_taxonomic_assignment/"{6_mmseqs_lca4.sh,7_taxonomy_comparison.py} "$WORK_DIR/"
+PROJECT_DIR="/path/to/your/project"
+mkdir -p "$PROJECT_DIR/raw_data" "$PROJECT_DIR/analyses/run_01"
 ```
 
-**Edit the paths inside the copied scripts before executing them.** Defining `WORK_DIR` in the terminal does **not** automatically override hard-coded `WORK_DIR` values inside each shell script. Step 2's Slurm wrapper expects `2_dada2.r` in the working directory. The original MMseqs2 reference path refers to an institution-specific database and must be replaced with a suitable local database.
+The scripts are available in the `1_sequence_processing/`, `2_motu_curation/`, and `3_taxonomic_assignment/` folders of this repository.
 
-The examples below assume these paths have been configured and the raw data are present. Commands shown in **Core analysis** blocks are **excerpts for explanation** and are not a substitute for the executable scripts.
+**Before execution, update the directory paths defined within the scripts** to match your local environment. In particular, verify the working directory (`WORK_DIR`), raw-data paths, and the MMseqs2 reference database path. Setting `WORK_DIR` in the terminal does not automatically override paths hard-coded inside individual scripts. The DADA2 wrapper (`2_dada2_run.sh`) also expects `2_dada2.r` in the working directory.
+
+Intermediate and final results will be generated in step-specific subdirectories under the configured working directory.
+
+The following tutorial assumes that all input files and paths have been configured. Commands shown under **Core analysis** are excerpts for explanation; execute the complete scripts to reproduce the analyses.
 
 ---
 
@@ -167,6 +179,8 @@ cutadapt -j "$THREADS" \
 ```
 
 `-O 17` requires at least 17 matched primer bases, while `e=0.20` permits up to 20% errors in a match. `--no-indels` disallows indels *during primer matching*. With `--pair-filter=both`, a pair is retained if **at least one** read has a recognized 5′ primer. In the final pass, `--minimum-length 50` and `--max-n 0` remove pairs with a short or ambiguous read; 3′ primer detection itself is optional. See the full script for adapter and 3′ primer commands.
+
+**Trimming parameter considerations.** The minimum overlap setting (`-O`) can substantially affect primer detection and trimming efficiency. Users are encouraged to compare different overlap settings based on their primer sequences and sequencing characteristics. Particular attention should be paid to the proportion of reads longer than the expected amplicon by approximately the length of a primer, differences in trimming performance between R1 and R2, and reads containing only partial primer sequences, which may remain undetected under overly stringent overlap settings.
 
 **Run:**
 
