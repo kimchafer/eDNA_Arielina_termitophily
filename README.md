@@ -229,11 +229,11 @@ DADA2 filters reads, learns error models, infers ASVs, merges paired reads, remo
 >
 > **R1 (forward reads)**
 >
-> ![R1 read quality profiles](images/dada2_quality_profile_r1.png)
+> <img width="2000" height="1400" alt="01_qualityProfile_R1" src="https://github.com/user-attachments/assets/dece047a-9eca-47a7-8fd8-adf6f107cc9e" />
 >
 > **R2 (reverse reads)**
 >
-> ![R2 read quality profiles](images/dada2_quality_profile_r2.png)
+> <img width="2000" height="1400" alt="02_qualityProfile_R2" src="https://github.com/user-attachments/assets/066cfcaa-bf81-4325-9c93-2b46dff6b5cb" />
 >
 > R1 generally maintained high sequencing quality, whereas R2 showed a more pronounced decline toward the 3′ end. Based on these profiles, truncation lengths of 240 bp (R1) and 200 bp (R2) were used. These settings retain a theoretical overlap of 121–133 bp for the selected 307–319 bp amplicons, exceeding the minimum 100 bp required for paired-end merging.
 >
@@ -245,11 +245,11 @@ DADA2 filters reads, learns error models, infers ASVs, merges paired reads, remo
 >
 > **R1 (forward error model)**
 >
-> ![R1 learned error model](images/dada2_error_model_r1.png)
+> <img width="2000" height="1400" alt="03_errorModel_R1" src="https://github.com/user-attachments/assets/c13a5bbb-6d79-4978-b839-16d6353afb4a" />
 >
 > **R2 (reverse error model)**
 >
-> ![R2 learned error model](images/dada2_error_model_r2.png)
+> <img width="2000" height="1400" alt="03_errorModel_R2" src="https://github.com/user-attachments/assets/aba71298-9f42-4ef6-98ba-1c1819fe4d63" />
 >
 > Gray points represent observed error frequencies, black curves represent the fitted error models, and red lines indicate nominal quality-score-based error expectations.
 >
@@ -278,7 +278,7 @@ dadaRs <- dada(filtRs, err=errR, pool="pseudo", multithread=THREADS)
 # Final length range: 307–319 bp (313 ± 6 bp)
 ```
 
-`maxEE=2` limits expected errors per read, while `pool="pseudo"` shares evidence of sequence variants across samples. Paired-end merging requires at least 100 bp of overlap with no mismatches. The final length range of 313 ± 6 bp accommodates limited amplicon-length variation, including possible short COI indels. No separate singleton-removal filter was applied.
+`maxEE=2` limits expected errors per read, while `pool="pseudo"` shares evidence of sequence variants across samples. Paired-end merging requires at least 100 bp of overlap with no mismatches. The final length range of 313 ± 6 bp accommodates limited amplicon-length variation, including possible short COI indels. No separate singleton-removal filter was applied (no singleton ASVs were observed in this study).
 
 **Run:**
 
