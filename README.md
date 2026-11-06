@@ -3,7 +3,7 @@
 
 This repository provides the analysis scripts and a step-by-step tutorial for processing COI amplicons recovered from material adhering to the body surface of *Arielina peringueyi* beetles (Insecta: Coleoptera: Scarabaeidae: Cetoniinae: Cremastocheilini). As this species belongs to Cremastocheilini, a tribe known for social parasitism, the workflow was developed to screen for associated organisms, with particular emphasis on identifying potential termite hosts.
 
-The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The commands shown under “Core analysis” illustrate the relevant parts of the published scripts; run the complete scripts rather than running these excerpts separately.** ChatGPT (OpenAI) assisted with script development and troubleshooting, while all analytical decisions, parameter settings, and validation were performed by the authors.
+The tutorial follows the original four-library Illumina MiSeq paired-end dataset, from demultiplexed raw reads through ASV inference, MOTU curation, and taxonomic assignment. **The command excerpts presented in each step illustrate the relevant parts of the published scripts. Run the complete scripts rather than executing these excerpts separately.** ChatGPT (OpenAI) assisted with script development and troubleshooting, while all analytical decisions, parameter settings, and validation were performed by the authors.
 
 ## Workflow
 
@@ -66,7 +66,7 @@ eDNA_Arielina_termitophily/
     └── 7_taxonomy_comparison.py
 ```
 
-The repository contains **source code**, not the full sequencing dataset or a prebuilt MMseqs2 reference database. Intermediate and final analysis files are generated in the working directory specified by the user when running the pipeline.
+The repository contains **source code**, not the full sequencing dataset or a prebuilt MMseqs2 reference database. Intermediate and final analysis files are generated in the working directory configured by the user before running the pipeline.
 
 ## Software and computing requirements
 
@@ -83,7 +83,7 @@ The supplied shell scripts were developed for a **Linux HPC cluster running Slur
 | 6 | [MMseqs2](https://github.com/soedinglab/MMseqs2) | Assign taxonomy using a nucleotide taxonomy database |
 | 7 | Python 3 standard library | Join and export taxonomy comparison tables |
 
-The scripts assume that their required environments have already been installed. For a different cluster or computer, update the hard-coded Conda activation paths, `WORK_DIR`, `RAW_DIR`, MMseqs2 reference database, and `#SBATCH` partition/resource directives. A nucleotide MMseqs2 database with associated taxonomy information is required for Step 6; it is **not** downloaded by this pipeline. The dataset's specific software settings and available version information are recorded in each stage's logs.
+The scripts assume that their required environments have already been installed. For a different cluster or computer, update the hard-coded Conda activation paths, `WORK_DIR`, `RAW_DIR`, MMseqs2 reference database, and `#SBATCH` partition/resource directives. A nucleotide MMseqs2 database with associated taxonomy information is required for Step 6; it is **not** downloaded by this pipeline. The software settings used for this dataset and available version information are recorded in each stage's logs.
 
 **Important:** Steps 1–6 are submitted to Slurm; Step 7 is a short Python post-processing task and can be run directly. The published scripts also protect existing output directories from being overwritten. Complete each step and inspect its QC output before submitting the next one.
 
@@ -98,6 +98,8 @@ prefetch <SRR_accession>
 fasterq-dump <SRR_accession> --split-files -e 8
 gzip <SRR_accession>_1.fastq <SRR_accession>_2.fastq
 ```
+
+The downloaded FASTQ files must be renamed to match the expected input naming convention, or the filename-parsing logic in `1_trimming.sh` must be modified accordingly.
 
 The original input naming pattern was:
 
@@ -151,7 +153,7 @@ The scripts are available in the `1_sequence_processing/`, `2_motu_curation/`, a
 
 Intermediate and final results will be generated in step-specific subdirectories under the configured working directory.
 
-The following tutorial assumes that all input files and paths have been configured. Commands shown under **Core analysis** are excerpts for explanation; execute the complete scripts to reproduce the analyses.
+The following tutorial assumes that all input files and paths have been configured. The command excerpts shown below are provided for explanation. Execute the complete scripts to reproduce the analyses.
 
 ---
 
@@ -160,7 +162,7 @@ The following tutorial assumes that all input files and paths have been configur
 **Script:** [`1_trimming.sh`](1_sequence_processing/1_trimming.sh)  
 **Input:** demultiplexed paired FASTQ files (`*.fastq.gz`)
 
-Cutadapt removes sequencing adapters and COI primers in three passes: (1) adapters, (2) 5′ primers, and (3) 3′ primers with final read filtering. The two target primers are:
+Cutadapt removes sequencing adapters and COI primers in three sequential passes: (1) adapters, (2) 5′ primers, and (3) 3′ primers with final read filtering. The two target primers are:
 
 | Primer | Sequence (5′–3′) |
 | --- | --- |
@@ -178,7 +180,7 @@ cutadapt -j "$THREADS" \
     "$adapter_r1" "$adapter_r2"
 ```
 
-`-O 17` requires at least 17 matched primer bases, while `e=0.20` permits up to 20% errors in a match. `--no-indels` disallows indels *during primer matching*. With `--pair-filter=both`, a pair is retained if **at least one** read has a recognized 5′ primer. In the final pass, `--minimum-length 50` and `--max-n 0` remove pairs with a short or ambiguous read; 3′ primer detection itself is optional. See the full script for adapter and 3′ primer commands.
+`-O 17` requires a minimum primer overlap of 17 bp, while e=0.20 permits an error rate of up to 20% within the overlap. `--no-indels` disallows indels *during primer matching*. With `--pair-filter=both`, a pair is retained if **at least one** read has a recognized 5′ primer. In the final pass, `--minimum-length 50` and `--max-n 0` remove pairs with a short or ambiguous read; 3′ primer detection itself is optional. See the full script for adapter and 3′ primer commands.
 
 **Trimming parameter considerations.** The minimum overlap setting (`-O`) can substantially affect primer detection and trimming efficiency. Users are encouraged to compare different overlap settings based on their primer sequences and sequencing characteristics. Particular attention should be paid to the proportion of reads longer than the expected amplicon by approximately the length of a primer, differences in trimming performance between R1 and R2, and reads containing only partial primer sequences, which may remain undetected under overly stringent overlap settings.
 
@@ -218,7 +220,7 @@ The “below DADA2 truncLen” values are **diagnostic counts**, not additional 
 **Scripts:** [`2_dada2_run.sh`](1_sequence_processing/2_dada2_run.sh) and [`2_dada2.r`](1_sequence_processing/2_dada2.r)  
 **Input:** primer-trimmed paired FASTQ files from Step 1
 
-DADA2 filters reads, learns error models, infers ASVs, merges paired reads, removes chimeras, and applies a final length filter. As demonstrated in the [official DADA2 tutorial](https://benjjneb.github.io/dada2/tutorial.html), users should inspect read quality profiles before selecting truncation lengths and evaluate the learned error models afterward. Our script integrates these steps into a single workflow, and the following QC section illustrates the recommended checks using the example dataset.
+DADA2 filters reads, learns error models, infers ASVs, merges paired reads, removes chimeras, and performs final length filtering. As demonstrated in the [official DADA2 tutorial](https://benjjneb.github.io/dada2/tutorial.html), users should inspect read quality profiles before selecting truncation lengths and evaluate the learned error models afterward. Our script integrates these steps into a single workflow, and the following QC section illustrates the recommended checks using the example dataset.
 
 <details>
 <summary><strong>Recommended QC: Read quality profiles and error models</strong></summary>
@@ -251,7 +253,7 @@ DADA2 filters reads, learns error models, infers ASVs, merges paired reads, remo
 >
 > <img width="2000" height="1400" alt="03_errorModel_R2" src="https://github.com/user-attachments/assets/aba71298-9f42-4ef6-98ba-1c1819fe4d63" />
 >
-> Gray points represent observed error frequencies, black curves represent the fitted error models, and red lines indicate nominal quality-score-based error expectations.
+> Gray points represent observed error frequencies, black curves represent the fitted error models, and red lines indicate nominal error rates expected from Phred quality scores.
 >
 > The fitted models generally captured the quality-dependent trends in observed error frequencies, although deviations were evident for some substitution types and quality-score ranges. Both models converged after four rounds, but convergence alone does not establish model adequacy. Users should therefore examine error-model plots alongside read-filtering, merging, and retention statistics before interpreting the final ASV results.
 >
@@ -319,7 +321,7 @@ Of the 618,865 read pairs retained after primer trimming, 589,476 (95.3%) passed
 **Script:** [`3_subsequence.sh`](1_sequence_processing/3_subsequence.sh)  
 **Input:** DADA2 ASV FASTA, sequence mapping, and sample-by-ASV abundance table
 
-In Step 2, an amplicon length range of 313 ± 6 bp was allowed to accommodate potential biological length variation, including short indels in insect COI sequences. However, this range may also retain artificially shortened ASVs that do not represent genuine biological variation. To address this before MOTU clustering, shorter ASVs were examined for exact sequence containment within longer ASVs. Automatic merging was restricted to ASVs showing 100% nucleotide identity to a unique longer parent at a terminal position and a length difference from 313 bp that was not a multiple of three. Any matches not meeting these criteria would be flagged for manual review rather than automatically merged.
+In Step 2, an amplicon length range of 313 ± 6 bp was allowed to accommodate potential biological length variation, including short indels in insect COI sequences. However, this range may also retain artificially shortened ASVs that do not represent genuine biological variation. To address this before MOTU clustering, shorter ASVs were examined for exact sequence containment within longer ASVs. Automatic merging was restricted to shorter ASVs that matched a unique longer parent with 100% nucleotide identity at either terminus of the parent sequence and whose length difference from 313 bp was not a multiple of three. Any matches not meeting these criteria would be flagged for manual review rather than automatically merged.
 
 **Key decision (excerpt):**
 
@@ -386,9 +388,9 @@ swarm -d "$D_VAL" -t "$THREADS" -z \
     -o "$CLUSTERS" -s "$STATS" -w "$SEEDS" "$SWARM_FASTA"
 ```
 
-The default is `d=2` (up to two differences per local link), **not** a global percentage-identity cutoff. `-z` reads the abundance annotations, and `-o`, `-s`, and `-w` generate membership, statistics, and representative sequences. For `d=1`, the script also enables fastidious mode (`-f`).
+The default is `d=2` (up to two differences per local link), **not** a global percentage-identity cutoff. `-z` reads the abundance annotations, and `-o`, `-s`, and `-w` generate cluster membership, statistics, and representative sequences. For `d=1`, the script also enables fastidious mode (`-f`).
 
-**Clustering parameter considerations.** Users are encouraged to test multiple `d` values (e.g., 1–10) and compare changes in MOTU counts and cluster composition. An elbow-like pattern in MOTU counts or a marked increase in cluster merging may help identify a suitable range, although neither provides a definitive criterion. The final `d` value should be selected considering the characteristics of the target marker and dataset. This analysis used `d=2`.
+**Clustering parameter considerations.** Users are encouraged to test multiple `d` values (e.g., 1–10) and compare changes in MOTU counts and cluster composition. An elbow-like pattern in MOTU counts or a marked increase in cluster merging may help identify a suitable range, although neither provides a definitive criterion. The final `d` value should be selected based on the characteristics of the target marker and dataset. This analysis used `d=2`.
 
 **Run:**
 
@@ -428,7 +430,7 @@ Here, `singleton_ASV_MOTUs` means **MOTUs containing one ASV**, not MOTUs with o
 **Script:** [`5_lulu.sh`](2_motu_curation/5_lulu.sh)  
 **Input:** Swarm representative FASTA and MOTU abundance table
 
-VSEARCH identifies similar MOTU representative sequences; LULU then uses sequence similarity, relative abundance, and sample co-occurrence to merge candidate daughter MOTUs into parents.
+VSEARCH identifies similar MOTU representative sequences; LULU then uses sequence similarity, relative abundance, and sample co-occurrence to merge candidate daughter MOTUs into parent MOTUs.
 
 **Key commands (excerpts):**
 
@@ -487,7 +489,7 @@ read_conservation                    PASS
 **Script:** [`6_mmseqs_lca4.sh`](3_taxonomic_assignment/6_mmseqs_lca4.sh)  
 **Input:** LULU-curated MOTU representatives and a taxonomy-enabled nucleotide reference database
 
-Because this study required species- and genus-level taxonomic information to investigate potential host associations, assignments obtained using the 97% identity threshold were prioritized for interpretation. However, many MOTUs remained unclassified under this condition. An additional analysis at 80% identity was therefore performed to explore the broader taxonomic affiliations of these MOTUs.
+Because this study required species- and genus-level taxonomic information to investigate potential host associations, assignments obtained using the 97% identity threshold were prioritized for interpretation. However, many MOTUs remained unclassified at this threshold. An additional analysis at 80% identity was therefore performed to explore the broader taxonomic affiliations of these MOTUs.
 
 **Key command (excerpt; `$identity` is 0.80 or 0.97):**
 
@@ -553,7 +555,7 @@ def compare(t80, t97):
     return "Same TaxID" if a == b else "Changed TaxID"
 ```
 
-A `Lost at 97%` assignment means that the stricter search did not return a TaxID; it does **not** mean the MOTU or its reads were removed. The output XLSX is a plain worksheet with no custom styling or filters.
+A `Lost at 97%` assignment means that the stricter search did not yield a taxonomic assignment. The output XLSX is a plain worksheet with no custom styling or filters.
 
 **Run (directly in the terminal; no Slurm submission):**
 
