@@ -23,6 +23,7 @@
 #   Match by MOTU ID; fail on missing, duplicate or unexpected IDs.
 #   Require the four sample columns KPC0541-KPC0544.
 #   Do not overwrite an existing output directory.
+#   Empty display cells are written as em dashes (—) in TSV/XLSX.
 #   Excel output contains plain cell values with default appearance.
 #   No colors, borders, bold text, filters, frozen panes, table styles,
 #   explicit column widths, or special row heights.
@@ -301,6 +302,16 @@ def build_rows(abund, tax80, tax97):
 # STEP 3. EXPORT PLAIN TSV AND XLSX TABLES
 # ==============================================================================
 
+EM_DASH = "—"
+
+
+def display_value(value):
+    """Replace missing text in exported tables without changing numeric zero."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return EM_DASH
+    return value
+
+
 def write_tsv(path, rows):
     with path.open(
         "w",
@@ -314,7 +325,9 @@ def write_tsv(path, rows):
         )
 
         writer.writerow(HEADERS)
-        writer.writerows(rows)
+        writer.writerows(
+            [display_value(value) for value in row] for row in rows
+        )
 
 
 def excel_col(n):
@@ -362,7 +375,7 @@ def write_xlsx(path, rows):
             else:
                 cells.append(
                     f'<c r="{address}" t="inlineStr">'
-                    f"<is><t>{escape(str(value))}</t></is>"
+                    f"<is><t>{escape(str(display_value(value)))}</t></is>"
                     "</c>"
                 )
 
